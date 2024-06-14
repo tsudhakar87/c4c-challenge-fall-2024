@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import PartnerTile from './PartnerTile';
 
 /*
@@ -6,32 +6,137 @@ import PartnerTile from './PartnerTile';
   including information on each partner
 */
 function Dashboard() {
-
-  const [partners, setPartners] = useState({});
-
-  // Load all partners on initial page load 
-  useEffect(() => {
-    fetch('http://localhost:4000', {
-      method: 'GET',
-    })
-    .then((res) => res.json())
-    .then((data) => {
-      setPartners(data);
-    })
-    .catch((error) => {
-      console.error('Error fetching partners:', error);
+    const [partners, setPartners] = useState({});
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        logoUrl: '',
+        isActive: false, // Default value should be false
+        delete: false
     });
-  }, [])
 
-  return (
-    <div id="main-content">
-      <div id="main-partners-grid">
-      {Object.keys(partners).map(partnerKey => (
-          <PartnerTile key={partnerKey} partnerData={partners[partnerKey]} />
-        ))}
-      </div>
-    </div>
-  )
+    useEffect(() => {
+        fetch('http://localhost:4000', {
+            method: 'GET',
+        })
+        .then((res) => res.json())
+        .then((data) => setPartners(data))
+        .catch((error) => console.error('Error fetching data:', error));
+    }, []);
+
+    const handleInputChange = (event) => {
+        const { name, type, checked, value } = event.target;
+        setFormData((prevFormData) => ({
+            ...prevFormData,
+            [name]: type === 'checkbox' ? checked : value
+        }));
+    };
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        fetch('http://localhost:4000/add-partner', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                thumbnailUrl: formData.logoUrl,
+                name: formData.name,
+                description: formData.description,
+                active: formData.isActive,
+                delete: false
+            })
+        })
+        .then((res) => res.json())
+        .then((data) => {
+            // Update the partners state with the new partner
+            const newPartnerKey = formData.name;
+            setPartners((prevPartners) => ({
+                ...prevPartners,
+                [newPartnerKey]: data.partner
+            }));
+            // Clear the form
+            setFormData({ name: '', description: '', logoUrl: '', isActive: false, delete: false });
+        })
+        .catch((error) => console.error('Error adding partner:', error));
+    };
+
+    const handleDelete = (partnerKey) => {
+        fetch(`http://localhost:4000/delete-partner/${partnerKey}`, {
+            method: 'DELETE',
+        })
+        .then(response => {
+            setPartners((prevPartners) => {
+                const newPartners = { ...prevPartners };
+                delete newPartners[partnerKey];
+                return newPartners;
+            });
+        })
+        .catch(error => {
+            console.error('Error deleting partner:', error);
+        });
+    };
+
+    return (
+        <div id="main-content">
+            <div id="main-partners-grid">
+            <form onSubmit={handleSubmit}>
+                <label htmlFor="name">Name:</label>
+                <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                />
+                <br />
+
+                <label htmlFor="description">Description:</label>
+                <textarea
+                    id="description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                ></textarea>
+                <br />
+
+                <label htmlFor="logoUrl">Logo URL:</label>
+                <input
+                    type="text"
+                    id="logoUrl"
+                    name="logoUrl"
+                    value={formData.logoUrl}
+                    onChange={handleInputChange}
+                />
+                <br />
+                <label htmlFor="isActive">Active:</label>
+                <input
+                    type="checkbox"
+                    id="isActive"
+                    name="isActive"
+                    checked={formData.isActive}
+                    onChange={handleInputChange}
+                />
+                <br />
+
+                <button type="submit">Submit</button>
+            </form>
+
+            {Object.keys(partners).map(partnerKey => {
+                    if (partners[partnerKey].delete) {
+                        return null; // Skip creating the PartnerTile if the partner is deleted
+                    }
+                    return (
+                        <PartnerTile 
+                            key={partnerKey} 
+                            partnerData={partners[partnerKey]} 
+                            onDelete={() => handleDelete(partnerKey)}
+                        />
+                    );
+                })}
+            </div>
+        </div>
+    );
 }
 
 export default Dashboard;
